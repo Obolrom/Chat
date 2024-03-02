@@ -69,6 +69,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+
     // RxJava
     implementation("io.reactivex.rxjava2:rxjava:2.2.20")
     implementation("io.reactivex.rxjava2:rxandroid:2.0.2")
@@ -76,6 +78,12 @@ dependencies {
     // STOMP
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.github.NaikSoftware:StompProtocolAndroid:1.6.6")
+
+    // Retrofit
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.9.3")
+    implementation("com.github.haroldadmin:NetworkResponseAdapter:5.0.0")
 
     // Utilities
     implementation("com.jakewharton.timber:timber:5.0.1")
@@ -87,8 +95,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-savedstate:2.7.0")
 
-    implementation("com.google.dagger:hilt-android:2.44")
-    kapt("com.google.dagger:hilt-android-compiler:2.44")
+    implementation("com.google.dagger:hilt-android:2.48")
+    kapt("com.google.dagger:hilt-android-compiler:2.48")
 }
 
 // Allow references to generated code
