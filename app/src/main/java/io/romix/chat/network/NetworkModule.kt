@@ -13,6 +13,8 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.create
+import ua.naiksoftware.stomp.Stomp
+import ua.naiksoftware.stomp.StompClient
 import java.security.KeyStore
 import java.security.cert.CertificateFactory
 import javax.net.ssl.SSLContext
@@ -24,9 +26,13 @@ import javax.net.ssl.X509TrustManager
 class NetworkModule {
 
     companion object {
-        const val CLUSTER_IP_ADDRESS = "192.168.0.106"
+        private const val CLUSTER_IP_ADDRESS = "192.168.0.106"
+
+        // note: for plain http should be used `ws` not `wss`
+        private const val WEB_SOCKET_ENDPOINT = "wss://$CLUSTER_IP_ADDRESS/gs-guide-websocket"
     }
 
+    // for plain HTTP
 //    @Provides
 //    fun provideAuthInterceptorOkHttpClient(): OkHttpClient {
 //        return OkHttpClient.Builder()
@@ -39,7 +45,7 @@ class NetworkModule {
     fun createOkHttpWithTrustManager(@ApplicationContext context: Context): OkHttpClient {
         val certificateFactory = CertificateFactory.getInstance("X.509")
 
-        // Replace R.raw.your_certificate with your certificate resource ID
+        // Put certificate.pem in R.raw.certificate
         val certificateInputStream = context.resources.openRawResource(R.raw.certificate)
         val certificate = certificateInputStream.use {
             certificateFactory.generateCertificate(it)
@@ -72,6 +78,16 @@ class NetworkModule {
             .addInterceptor(HttpLoggingInterceptor()
                 .apply { level = HttpLoggingInterceptor.Level.BODY })
             .build()
+    }
+
+    @Provides
+    fun provideChatClient(okHttpClient: OkHttpClient): StompClient {
+        return Stomp.over(
+            Stomp.ConnectionProvider.OKHTTP,
+            WEB_SOCKET_ENDPOINT,
+            mapOf(),
+            okHttpClient
+        )
     }
 
     @Provides
