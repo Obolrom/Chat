@@ -6,6 +6,7 @@ import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
+import io.romix.chat.model.Message
 import io.romix.chat.model.User
 import io.romix.chat.network.ChatMessage
 import io.romix.chat.repository.BackendRepository
@@ -17,7 +18,6 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import ua.naiksoftware.stomp.StompClient
 import ua.naiksoftware.stomp.dto.StompHeader
-import ua.naiksoftware.stomp.dto.StompMessage
 import javax.inject.Inject
 
 @HiltViewModel
@@ -32,8 +32,8 @@ class ChatViewModel @Inject constructor(
 
     private val userFlow: MutableStateFlow<User?> = MutableStateFlow(null)
 
-    private val messagesInternal = MutableStateFlow<List<StompMessage>>(emptyList())
-    val messages: StateFlow<List<StompMessage>> = messagesInternal.asStateFlow()
+    private val messagesInternal = MutableStateFlow<List<Message>>(emptyList())
+    val messages: StateFlow<List<Message>> = messagesInternal.asStateFlow()
 
     fun connectToChat() {
         val userToConnect = userFlow.value ?: return
@@ -44,15 +44,25 @@ class ChatViewModel @Inject constructor(
 
         chatClient.topic("/user/${userToConnect.userId}/queue/chat")
             .subscribeOn(Schedulers.io())
+            .map { gson.fromJson(it.payload, Message::class.java) }
             .subscribe(
                 {
-                    Timber.tag(ChatViewModel::class.java.simpleName).d("direct ${it.payload}")
-                    messagesInternal.tryEmit(messagesInternal.value + it)
+                    Timber.tag(ChatViewModel::class.java.simpleName).d("direct $it")
+                    messagesInternal.tryEmit(listOf(it) + messagesInternal.value)
                 },
                 { error -> Timber.tag(ChatViewModel::class.java.simpleName).e(error) },
                 { Timber.tag(ChatViewModel::class.java.simpleName).d("topic complete") }
             )
             .also(topicDisposables::add)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            backendRepository.getLastMessagesForCollocutor(
+                currentUser = userToConnect,
+                collocutorId = RECEIVER_USER_ID
+            ).onSuccess { lastDirectMessages ->
+                messagesInternal.emit(lastDirectMessages)
+            }
+        }
 
         Timber.tag(ChatViewModel::class.java.simpleName).d("Connected")
     }
@@ -69,7 +79,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun sendMessage(message: String) {
-        val chatMessage = ChatMessage(message, 1, userFlow.value?.userId ?: 0L)
+        val chatMessage = ChatMessage(message, RECEIVER_USER_ID)
 
         chatClient.send("/chat/direct", gson.toJson(chatMessage))
             .subscribe(
@@ -86,5 +96,9 @@ class ChatViewModel @Inject constructor(
         chatClient.disconnect()
         disposeBag.dispose()
         topicDisposables.dispose()
+    }
+
+    companion object {
+        private const val RECEIVER_USER_ID = 4L
     }
 }
