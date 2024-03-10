@@ -2,6 +2,7 @@ package io.romix.chat.network
 
 import com.haroldadmin.cnradapter.NetworkResponse
 import io.romix.chat.network.response.PageMessageResponse
+import io.romix.chat.network.response.UserListResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -20,4 +21,9 @@ interface BackendService {
         @Path("collocutorId") collocutorId: Long,
         @Query("pageSize") pageSize: Int
     ): NetworkResponse<PageMessageResponse, *>
+
+    @GET("api/v1/users")
+    suspend fun getUsers(
+        @Header("Authorization") bearerToken: String,
+    ): NetworkResponse<UserListResponse, *>
 }

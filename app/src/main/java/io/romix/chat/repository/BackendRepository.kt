@@ -3,6 +3,7 @@ package io.romix.chat.repository
 import com.haroldadmin.cnradapter.NetworkResponse
 import dagger.Reusable
 import io.romix.chat.model.Message
+import io.romix.chat.model.CurrentUser
 import io.romix.chat.model.User
 import io.romix.chat.network.AuthRequest
 import io.romix.chat.network.AuthResponse
@@ -14,7 +15,7 @@ class BackendRepository @Inject constructor(
     private val api: BackendService,
 ) {
 
-    suspend fun authorize(login: String): Result<User> {
+    suspend fun authorize(login: String): Result<CurrentUser> {
         return when (val response = api.authorize(AuthRequest(login, login))) {
             is NetworkResponse.Success -> {
                 Result.success(authRequestToAuth(response.body, login))
@@ -28,7 +29,7 @@ class BackendRepository @Inject constructor(
     }
 
     suspend fun getLastMessagesForCollocutor(
-        currentUser: User,
+        currentUser: CurrentUser,
         collocutorId: Long,
     ): Result<List<Message>> {
         val response = api.getMessages(
@@ -58,8 +59,27 @@ class BackendRepository @Inject constructor(
         }
     }
 
-    private fun authRequestToAuth(authResponse: AuthResponse, login: String): User {
-        return User(
+    suspend fun getUsers(currentUser: CurrentUser): Result<List<User>> {
+        return when (val response = api.getUsers("Bearer ${currentUser.token}")) {
+            is NetworkResponse.Success -> {
+                Result.success(response.body.users.map {
+                    User(
+                        id = it.id,
+                        username = it.username,
+                        avatarUrl = it.photoUrl,
+                    )
+                })
+            }
+            is NetworkResponse.Error -> {
+                val throwable = response.error
+                    ?: IllegalStateException("Unknown error, body: ${response.body}")
+                Result.failure(throwable)
+            }
+        }
+    }
+
+    private fun authRequestToAuth(authResponse: AuthResponse, login: String): CurrentUser {
+        return CurrentUser(
             userId = requireNotNull(authResponse.userId),
             token = requireNotNull(authResponse.token),
             username = login,

@@ -71,6 +71,14 @@ dependencies {
 
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
+    // Navigation
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+
+    // Redux
+    implementation("org.orbit-mvi:orbit-core:6.1.1")
+    implementation("org.orbit-mvi:orbit-viewmodel:6.1.1")
+    implementation("org.orbit-mvi:orbit-compose:6.1.1")
+
     // RxJava
     implementation("io.reactivex.rxjava2:rxjava:2.2.20")
     implementation("io.reactivex.rxjava2:rxandroid:2.0.2")
@@ -86,6 +94,7 @@ dependencies {
     implementation("com.github.haroldadmin:NetworkResponseAdapter:5.0.0")
 
     // Utilities
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-rx2:1.7.1")
     implementation("com.jakewharton.timber:timber:5.0.1")
     implementation("io.coil-kt:coil:2.4.0")
     implementation("io.coil-kt:coil-compose:2.2.2")

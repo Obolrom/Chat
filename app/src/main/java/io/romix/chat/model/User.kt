@@ -1,7 +1,7 @@
 package io.romix.chat.model
 
 data class User(
-    val userId: Long,
-    val token: String,
+    val id: Long,
     val username: String,
+    val avatarUrl: String?,
 )
