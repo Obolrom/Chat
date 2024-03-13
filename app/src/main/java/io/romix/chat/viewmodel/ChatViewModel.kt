@@ -79,7 +79,7 @@ class ChatViewModel @Inject constructor(
         coroutineScope {
             repeatOnSubscription {
                 launch {
-                    chatClient.topic("/user/${currentUser.userId}/queue/chat")
+                    chatClient.topic("/user/queue/chat")
                         .map { gson.fromJson(it.payload, Message::class.java) }
                         .asFlow()
                         .catch { error ->
