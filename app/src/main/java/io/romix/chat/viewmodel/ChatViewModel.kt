@@ -21,6 +21,7 @@ import kotlinx.coroutines.rx2.asFlow
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.syntax.simple.intent
+import org.orbitmvi.orbit.syntax.simple.postSideEffect
 import org.orbitmvi.orbit.syntax.simple.reduce
 import org.orbitmvi.orbit.syntax.simple.repeatOnSubscription
 import org.orbitmvi.orbit.viewmodel.container
@@ -35,12 +36,15 @@ data class ChatState(
     val messages: List<Message>,
 )
 
-sealed class ChatSideEffect
+sealed class ChatSideEffect {
+
+    data object Logout : ChatSideEffect()
+}
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    currentUserStorage: CurrentUserStorage,
+    private val currentUserStorage: CurrentUserStorage,
     private val backendRepository: BackendRepository,
     private val chatClient: StompClient,
 ) : ViewModel(), ContainerHost<ChatState, ChatSideEffect> {
@@ -71,6 +75,12 @@ class ChatViewModel @Inject constructor(
             .collectLatest {
                 Timber.tag(ChatViewModel::class.java.simpleName).d("sent message")
             }
+    }
+
+    fun logout() = intent {
+        currentUserStorage.logout()
+
+        postSideEffect(ChatSideEffect.Logout)
     }
 
     private fun connectToChat() = intent {

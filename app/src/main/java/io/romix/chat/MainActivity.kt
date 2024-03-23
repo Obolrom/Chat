@@ -44,7 +44,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import io.romix.chat.model.CurrentUser
 import io.romix.chat.state.ChatListState
 import io.romix.chat.ui.theme.ChatTheme
+import io.romix.chat.viewmodel.ChatListSideEffect
 import io.romix.chat.viewmodel.ChatListViewModel
+import io.romix.chat.viewmodel.ChatSideEffect
 import io.romix.chat.viewmodel.ChatState
 import io.romix.chat.viewmodel.ChatViewModel
 import io.romix.chat.viewmodel.LoginSideEffect
@@ -76,10 +78,15 @@ fun ChatAppNavHost(
     ) {
         composable(route = "login") {
             val loginViewModel = hiltViewModel<LoginViewModel>()
-            loginViewModel.collectSideEffect {
-                when (it) {
-                    LoginSideEffect.Success -> {
-                        navController.navigate(route = "chatList")
+
+            loginViewModel.collectSideEffect { effect ->
+                when (effect) {
+                    is LoginSideEffect.Success -> {
+                        navController.navigate(route = "chatList") {
+                            popUpTo(navController.graph.id) {
+                                inclusive = true
+                            }
+                        }
                     }
                 }
             }
@@ -90,10 +97,23 @@ fun ChatAppNavHost(
         composable(route = "chatList") {
             val chatListViewModel = hiltViewModel<ChatListViewModel>()
             val chatListState: ChatListState = chatListViewModel.collectAsState().value
+            chatListViewModel.collectSideEffect { effect ->
+                when (effect) {
+                    is ChatListSideEffect.LoadChatsError -> { }
+                    is ChatListSideEffect.Logout -> {
+                        navController.navigate(route = "login") {
+                            popUpTo(navController.graph.id) {
+                                inclusive = true
+                            }
+                        }
+                    }
+                }
+            }
 
             ChatList(
                 chatListState = chatListState,
-                onNavigateToChat = { userId -> navController.navigate(route = "chat/$userId") }
+                onNavigateToChat = { userId -> navController.navigate(route = "chat/$userId") },
+                onLogout = { chatListViewModel.logout() },
             )
         }
 
@@ -103,10 +123,22 @@ fun ChatAppNavHost(
         ) {
             val chatViewModel = hiltViewModel<ChatViewModel>()
             val chatState: ChatState = chatViewModel.collectAsState().value
+            chatViewModel.collectSideEffect { effect ->
+                when (effect) {
+                    is ChatSideEffect.Logout -> {
+                        navController.navigate(route = "login") {
+                            popUpTo(navController.graph.id) {
+                                inclusive = true
+                            }
+                        }
+                    }
+                }
+            }
 
             DirectChat(
                 chatState = chatState,
                 onSendMessage = chatViewModel::sendMessage,
+                onLogout = { chatViewModel.logout() }
             )
         }
     }
@@ -148,6 +180,7 @@ fun Login(
 fun ChatList(
     chatListState: ChatListState,
     onNavigateToChat: (Long) -> Unit,
+    onLogout: () -> Unit,
 ) {
     ChatTheme {
         Surface(
@@ -155,7 +188,10 @@ fun ChatList(
             color = MaterialTheme.colorScheme.background
         ) {
             Column {
-                CurrentAuthenticatedUser(currentUser = chatListState.currentUser)
+                CurrentAuthenticatedUser(
+                    currentUser = chatListState.currentUser,
+                    onLogout = onLogout,
+                )
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text(
@@ -191,7 +227,8 @@ fun ChatList(
 @Composable
 fun DirectChat(
     chatState: ChatState,
-    onSendMessage: (String) -> Unit
+    onSendMessage: (String) -> Unit,
+    onLogout: () -> Unit,
 ) {
     ChatTheme {
         // A surface container using the 'background' color from the theme
@@ -202,7 +239,10 @@ fun DirectChat(
             val chatInput = remember { mutableStateOf("") }
 
             Column {
-                CurrentAuthenticatedUser(currentUser = chatState.currentUser)
+                CurrentAuthenticatedUser(
+                    currentUser = chatState.currentUser,
+                    onLogout = onLogout,
+                )
 
                 Column {
                     LazyColumn(
@@ -249,14 +289,26 @@ fun DirectChat(
 fun CurrentAuthenticatedUser(
     currentUser: CurrentUser,
     modifier: Modifier = Modifier,
+    onLogout: () -> Unit = { },
 ) {
-    Text(
-        modifier = modifier
+    Row(
+        modifier = Modifier
             .fillMaxWidth()
-            .background(Color.LightGray)
-            .padding(8.dp),
-        text = "current user: ${currentUser.username}",
-    )
+            .background(Color.LightGray),
+    ) {
+        Text(
+            modifier = modifier
+                .weight(1f)
+                .padding(8.dp),
+            text = "current user: ${currentUser.username}",
+        )
+        Text(
+            modifier = modifier
+                .clickable { onLogout() }
+                .padding(8.dp),
+            text = "logout",
+        )
+    }
 }
 
 @Composable

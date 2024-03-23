@@ -8,6 +8,7 @@ import io.romix.chat.repository.BackendRepository
 import io.romix.chat.state.ChatListState
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
+import org.orbitmvi.orbit.syntax.simple.intent
 import org.orbitmvi.orbit.syntax.simple.postSideEffect
 import org.orbitmvi.orbit.syntax.simple.reduce
 import org.orbitmvi.orbit.viewmodel.container
@@ -16,11 +17,13 @@ import javax.inject.Inject
 sealed class ChatListSideEffect {
 
     data class LoadChatsError(val error: Throwable) : ChatListSideEffect()
+
+    data object Logout : ChatListSideEffect()
 }
 
 @HiltViewModel
 class ChatListViewModel @Inject constructor(
-    currentUserStorage: CurrentUserStorage,
+    private val currentUserStorage: CurrentUserStorage,
     private val backendRepository: BackendRepository,
 ) : ViewModel(), ContainerHost<ChatListState, ChatListSideEffect> {
 
@@ -39,4 +42,10 @@ class ChatListViewModel @Inject constructor(
                 .onFailure { postSideEffect(ChatListSideEffect.LoadChatsError(it)) }
         }
     )
+
+    fun logout() = intent {
+        currentUserStorage.logout()
+
+        postSideEffect(ChatListSideEffect.Logout)
+    }
 }

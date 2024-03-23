@@ -27,6 +27,8 @@ class LoginViewModel @Inject constructor(
         initialState = Unit,
         onCreate = {
             coroutineScope {
+                currentUserStorage.tryAutoLogin()
+
                 currentUserStorage.userFlow
                     .filterNotNull()
                     .collectLatest { postSideEffect(LoginSideEffect.Success) }
