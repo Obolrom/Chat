@@ -9,6 +9,7 @@ import io.romix.chat.model.CurrentUser
 import io.romix.chat.model.Message
 import io.romix.chat.model.User
 import io.romix.chat.network.ChatMessage
+import io.romix.chat.network.RoomChatMessage
 import io.romix.chat.repository.BackendRepository
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.catch
@@ -49,7 +50,8 @@ class ChatViewModel @Inject constructor(
     private val chatClient: StompClient,
 ) : ViewModel(), ContainerHost<ChatState, ChatSideEffect> {
 
-    private val destinationUserId: Long = checkNotNull(savedStateHandle["userId"])
+    private val destinationId: Long = checkNotNull(savedStateHandle["userId"])
+    private val destinationType: String = checkNotNull(savedStateHandle["type"])
     private val currentUser: CurrentUser = requireNotNull(currentUserStorage.userFlow.value) {
         "Current user should be presented"
     }
@@ -66,7 +68,12 @@ class ChatViewModel @Inject constructor(
     private val gson = Gson()
 
     fun sendMessage(message: String) = intent {
-        val chatMessage = ChatMessage(message, destinationUserId)
+        if (destinationType == "group") {
+            sendMessageToRoom(message)
+            return@intent
+        }
+
+        val chatMessage = ChatMessage(message, destinationId)
 
         chatClient.send("/chat/direct", gson.toJson(chatMessage))
             .toObservable<Unit>()
@@ -83,13 +90,29 @@ class ChatViewModel @Inject constructor(
         postSideEffect(ChatSideEffect.Logout)
     }
 
+    private suspend fun sendMessageToRoom(message: String) {
+        val chatMessage = RoomChatMessage(message)
+
+        chatClient.send("/chat/room/$destinationId", gson.toJson(chatMessage))
+            .toObservable<Unit>()
+            .asFlow()
+            .catch { error -> Timber.tag(ChatViewModel::class.java.simpleName).e(error) }
+            .collectLatest {
+                Timber.tag(ChatViewModel::class.java.simpleName).d("sent message")
+            }
+    }
+
     private fun connectToChat() = intent {
         chatClient.connect(listOf(StompHeader("Authorization", "Bearer ${currentUser.token}")))
 
         coroutineScope {
             repeatOnSubscription {
                 launch {
-                    chatClient.topic("/user/queue/chat")
+                    val topic =
+                        if (destinationType == "group") chatClient.topic("/topic/room.$destinationId")
+                        else chatClient.topic("/user/queue/chat")
+
+                    topic
                         .map { gson.fromJson(it.payload, Message::class.java) }
                         .asFlow()
                         .catch { error ->
@@ -107,11 +130,20 @@ class ChatViewModel @Inject constructor(
                         }
                 }
                 launch {
-                    backendRepository.getLastMessagesForCollocutor(
-                        currentUser = currentUser,
-                        collocutorId = destinationUserId
-                    ).onSuccess { lastDirectMessages ->
-                        reduce { state.copy(messages = lastDirectMessages) }
+                    if (destinationType == "group") {
+                        backendRepository.getLastRoomMessages(
+                            currentUser = currentUser,
+                            roomId = destinationId,
+                        ).onSuccess { lastDirectMessages ->
+                            reduce { state.copy(messages = lastDirectMessages) }
+                        }
+                    } else {
+                        backendRepository.getLastMessagesForCollocutor(
+                            currentUser = currentUser,
+                            collocutorId = destinationId,
+                        ).onSuccess { lastDirectMessages ->
+                            reduce { state.copy(messages = lastDirectMessages) }
+                        }
                     }
 
                     Timber.tag(ChatViewModel::class.java.simpleName).d("Connected")

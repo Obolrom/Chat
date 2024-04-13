@@ -5,7 +5,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.romix.chat.CurrentUserStorage
 import io.romix.chat.model.CurrentUser
 import io.romix.chat.repository.BackendRepository
+import io.romix.chat.state.ChatItem
 import io.romix.chat.state.ChatListState
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.syntax.simple.intent
@@ -35,11 +38,38 @@ class ChatListViewModel @Inject constructor(
         initialState = ChatListState(
             currentUser = currentUser,
             chats = emptyList(),
+            chatItems = emptyList(),
         ),
         onCreate = {
-            backendRepository.getUsers(currentUser)
-                .onSuccess { chats -> reduce { state.copy(chats = chats) } }
-                .onFailure { postSideEffect(ChatListSideEffect.LoadChatsError(it)) }
+            coroutineScope {
+                val directChats = async { backendRepository.getUsers(currentUser) }
+                val groupChats = async { backendRepository.getChats(currentUser) }
+
+                val directChatsResult = directChats.await()
+                    .map { users -> users.map { ChatItem.DirectItem(it) } }
+                val groupChatsResult = groupChats.await()
+                    .map { chats -> chats.map { ChatItem.GroupItem(it) } }
+
+                if (directChatsResult.isSuccess && groupChatsResult.isSuccess) {
+                    reduce {
+                        state.copy(
+                            chatItems = directChatsResult.getOrThrow() + groupChatsResult.getOrThrow(),
+                        )
+                    }
+                } else {
+                    when {
+                        directChatsResult.isFailure && groupChatsResult.isFailure -> {
+                            postSideEffect(ChatListSideEffect.LoadChatsError(Exception("Direct chats and group chats failed to load")))
+                        }
+                        directChatsResult.isFailure -> {
+                            postSideEffect(ChatListSideEffect.LoadChatsError(directChatsResult.exceptionOrNull() ?: Exception()))
+                        }
+                        groupChatsResult.isFailure -> {
+                            postSideEffect(ChatListSideEffect.LoadChatsError(groupChatsResult.exceptionOrNull() ?: Exception()))
+                        }
+                    }
+                }
+            }
         }
     )
 

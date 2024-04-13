@@ -42,6 +42,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import dagger.hilt.android.AndroidEntryPoint
 import io.romix.chat.model.CurrentUser
+import io.romix.chat.state.ChatItem
 import io.romix.chat.state.ChatListState
 import io.romix.chat.ui.theme.ChatTheme
 import io.romix.chat.viewmodel.ChatListSideEffect
@@ -112,14 +113,24 @@ fun ChatAppNavHost(
 
             ChatList(
                 chatListState = chatListState,
-                onNavigateToChat = { userId -> navController.navigate(route = "chat/$userId") },
+                onNavigateToChat = { chatItem ->
+                    val type = if (chatItem is ChatItem.DirectItem) "direct" else "group"
+                    val id = when (chatItem) {
+                        is ChatItem.DirectItem -> chatItem.user.id
+                        is ChatItem.GroupItem -> chatItem.chat.id
+                    }
+                    navController.navigate(route = "chat/$id/$type")
+                },
                 onLogout = { chatListViewModel.logout() },
             )
         }
 
         composable(
-            route = "chat/{userId}",
-            arguments = listOf(navArgument("userId") { type = NavType.LongType })
+            route = "chat/{userId}/{type}",
+            arguments = listOf(
+                navArgument("userId") { type = NavType.LongType },
+                navArgument("type") { type = NavType.StringType },
+            )
         ) {
             val chatViewModel = hiltViewModel<ChatViewModel>()
             val chatState: ChatState = chatViewModel.collectAsState().value
@@ -179,7 +190,7 @@ fun Login(
 @Composable
 fun ChatList(
     chatListState: ChatListState,
-    onNavigateToChat: (Long) -> Unit,
+    onNavigateToChat: (ChatItem) -> Unit,
     onLogout: () -> Unit,
 ) {
     ChatTheme {
@@ -201,18 +212,24 @@ fun ChatList(
 
                     LazyColumn {
                         items(
-                            items = chatListState.chats,
-                            key = { it.id }
+                            items = chatListState.chatItems,
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillParentMaxWidth()
                                     .height(40.dp)
                                     .background(Color.LightGray, RoundedCornerShape(8.dp))
-                                    .clickable { onNavigateToChat(it.id) }
+                                    .clickable { onNavigateToChat(it) }
                                     .padding(8.dp)
                             ) {
-                                Text(text = it.username)
+                                when (it) {
+                                    is ChatItem.DirectItem -> {
+                                        Text(text = it.user.username)
+                                    }
+                                    is ChatItem.GroupItem -> {
+                                        Text(text = "CHAT: ${it.chat.title}")
+                                    }
+                                }
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                         }
