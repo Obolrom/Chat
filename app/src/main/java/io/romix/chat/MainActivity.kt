@@ -3,6 +3,7 @@ package io.romix.chat
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -54,6 +56,7 @@ import io.romix.chat.viewmodel.LoginSideEffect
 import io.romix.chat.viewmodel.LoginViewModel
 import org.orbitmvi.orbit.compose.collectAsState
 import org.orbitmvi.orbit.compose.collectSideEffect
+import timber.log.Timber
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -134,6 +137,7 @@ fun ChatAppNavHost(
         ) {
             val chatViewModel = hiltViewModel<ChatViewModel>()
             val chatState: ChatState = chatViewModel.collectAsState().value
+            Timber.tag("chatState").d("${chatState.isTyping}, ${chatState.collocutorUser}")
             chatViewModel.collectSideEffect { effect ->
                 when (effect) {
                     is ChatSideEffect.Logout -> {
@@ -149,7 +153,8 @@ fun ChatAppNavHost(
             DirectChat(
                 chatState = chatState,
                 onSendMessage = chatViewModel::sendMessage,
-                onLogout = { chatViewModel.logout() }
+                onLogout = { chatViewModel.logout() },
+                onTyping = { chatViewModel.onTyping(it) },
             )
         }
     }
@@ -246,6 +251,7 @@ fun DirectChat(
     chatState: ChatState,
     onSendMessage: (String) -> Unit,
     onLogout: () -> Unit,
+    onTyping: (String) -> Unit,
 ) {
     ChatTheme {
         // A surface container using the 'background' color from the theme
@@ -253,13 +259,25 @@ fun DirectChat(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            val chatInput = remember { mutableStateOf("") }
+            val chatInput = rememberSaveable { mutableStateOf("") }
 
             Column {
                 CurrentAuthenticatedUser(
                     currentUser = chatState.currentUser,
                     onLogout = onLogout,
                 )
+                AnimatedVisibility(visible = chatState.isTyping) {
+                    if (chatState.collocutorUser != null) {
+                        Text(
+                            modifier = Modifier
+                                .padding(horizontal = 2.dp, vertical = 4.dp)
+                                .background(
+                                    color = Color(245, 245, 220),
+                                    shape = RoundedCornerShape(30)),
+                            text = "${chatState.collocutorUser.username} is typing...",
+                        )
+                    }
+                }
 
                 Column {
                     LazyColumn(
@@ -283,7 +301,10 @@ fun DirectChat(
                         OutlinedTextField(
                             modifier = Modifier.weight(1f),
                             value = chatInput.value,
-                            onValueChange = { input -> chatInput.value = input },
+                            onValueChange = { input ->
+                                chatInput.value = input
+                                onTyping(input)
+                            },
                             label = { Text("Enter a message") },
                             keyboardActions = KeyboardActions(onDone = {
                                 keyboardController?.hide()
@@ -292,6 +313,7 @@ fun DirectChat(
                         Button(onClick = {
                             onSendMessage(chatInput.value)
                             chatInput.value = ""
+                            onTyping("")
                         }) {
                             Text(text = "Send")
                         }

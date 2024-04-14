@@ -95,6 +95,23 @@ class BackendRepository @Inject constructor(
         }
     }
 
+    suspend fun getUserById(currentUser: CurrentUser, collocutorId: Long): Result<User> {
+        return when (val response = api.getUserById("Bearer ${currentUser.token}", collocutorId)) {
+            is NetworkResponse.Success -> {
+                Result.success(User(
+                    id = response.body.id,
+                    username = response.body.username,
+                    avatarUrl = response.body.photoUrl,
+                ))
+            }
+            is NetworkResponse.Error -> {
+                val throwable = response.error
+                    ?: IllegalStateException("Unknown error, body: ${response.body}")
+                Result.failure(throwable)
+            }
+        }
+    }
+
     suspend fun getChats(currentUser: CurrentUser): Result<List<Chat>> {
         return when (val response = api.getChats("Bearer ${currentUser.token}")) {
             is NetworkResponse.Success -> {

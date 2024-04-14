@@ -35,6 +35,12 @@ interface BackendService {
         @Header("Authorization") bearerToken: String,
     ): NetworkResponse<UserListResponse, *>
 
+    @GET("api/v1/users/{collocutorId}")
+    suspend fun getUserById(
+        @Header("Authorization") bearerToken: String,
+        @Path("collocutorId") collocutorId: Long,
+    ): NetworkResponse<UserListResponse.UserResponse, *>
+
     @GET("api/v1/chats")
     suspend fun getChats(
         @Header("Authorization") bearerToken: String,
